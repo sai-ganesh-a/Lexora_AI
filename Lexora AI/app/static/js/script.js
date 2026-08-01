@@ -1,0 +1,1 @@
+console.log("Lexora AI Loaded");

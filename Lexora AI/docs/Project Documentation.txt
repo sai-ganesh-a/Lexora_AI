@@ -1,0 +1,94 @@
+General Project Documentation
+Lexora AI
+
+
+What is this project
+
+Lexora AI is a document chat system. You upload a file and then ask questions about it. The system reads the file extracts the text and stores it in a way that AI can search through it quickly. Then when you ask something it finds the most relevant parts and sends it to Gemini which gives you the answer.
+
+The idea is similar to ChatGPT but only for your own files. Nothing goes outside except to Gemini API.
+
+
+Why Flask and not Django or FastAPI
+
+Flask was chosen because it is simple and quick to set up. The project scope does not need anything heavy like Django. FastAPI is good for pure APIs but here we also need templates for the HTML pages so Flask made more sense. Also there is already familiarity with Flask so development was faster.
+
+
+Why SQLite and not PostgreSQL or MySQL
+
+SQLite is file based and needs zero configuration. For a project like this where one or few users are using it locally SQLite is more than enough. If this was a production system with hundreds of users then PostgreSQL would make more sense. But right now SQLite keeps things simple.
+
+
+Why ChromaDB for vector storage
+
+ChromaDB is easy to set up and works well locally without needing a separate server. Options like Pinecone and Weaviate are cloud services which need API keys and internet. FAISS is another option but ChromaDB has a cleaner Python interface and supports metadata filtering which we needed to separate documents by project. So ChromaDB won.
+
+
+Why Gemini for embeddings and not OpenAI
+
+Gemini API gives free credits and the models are good enough for document search. OpenAI embeddings are popular but cost more. Since this project uses Gemini for chat generation anyway it made sense to use the same API for embeddings too. Keeps the dependency simple.
+
+
+How the RAG pipeline works
+
+When you upload a file the system does these things in order.
+
+First it reads the file and pulls out all the text. For PDF it uses PyMuPDF. For DOCX it uses python-docx. For plain text it just reads it directly.
+
+Then it breaks the text into chunks. Each chunk is around 800 characters with 100 character overlap so context is not lost at the edges.
+
+Then each chunk is sent to Gemini embedding model which returns a list of numbers that represent the meaning of that text. These numbers are called vectors.
+
+These vectors along with the chunk text and some metadata like project id and document id are stored in ChromaDB.
+
+When you ask a question the same embedding process happens for your question. ChromaDB then searches and finds the chunks that are semantically closest to your question. Those chunks are sent to Gemini with your question and Gemini writes the answer based on that content only.
+
+
+Why chunk size 800 with 100 overlap
+
+Smaller chunks like 200 or 300 lose too much context. Larger chunks like 2000 make the embedding less specific. 800 is a middle ground that works well for most documents. The 100 character overlap ensures that if something important is at the boundary of two chunks it still shows up in at least one of them.
+
+
+How user isolation works
+
+Every project is tied to a user id in the database. When someone logs in they can only see their own projects. When a question is asked the vector search uses the project id as a filter in ChromaDB so results only come from that project's documents. One user cannot access another user's files.
+
+
+Why strict document only answers
+
+The system is meant to be a document assistant not a general chatbot. If users start asking random questions like what is war or explain quantum physics the system becomes misleading because it tries to answer from document context which does not have that information. So the prompt is designed to refuse out of context questions and tell the user to ask something related to their uploaded files.
+
+
+Chat history and why it is stored in SQLite
+
+Chat messages are saved so when you come back to a project your previous conversation is still there. It also helps the AI understand the context of follow up questions. For example if you asked who is the candidate and then ask what are their skills the AI uses the previous messages to understand you are still talking about the same person.
+
+Messages are stored in the chat messages table with project id sender and timestamp.
+
+
+Document deletion and cleanup
+
+When a document is deleted three things happen. The physical file is removed from the uploads folder. The vector embeddings are deleted from ChromaDB using the document id as a filter. The database record is removed from SQLite. This is important because if only the database record is deleted the vectors stay in ChromaDB and waste space and may even show up in future searches.
+
+
+What happens if embedding fails
+
+If the Gemini API fails during processing the document status is set to error in the database. The file stays on disk but it is not indexed. The user will see the error status badge on the document card. They can delete it and try uploading again.
+
+
+Operational details
+
+The app runs in debug mode by default. For any real deployment this should be turned off. The upload folder and ChromaDB folder are created automatically if they do not exist. The SQLite database is also created automatically on first run.
+
+The .env file is required. Without it the app will not have the Gemini API key and everything will fail.
+
+Session cookies are used for login. The secret key in the config controls session security. For production this should be a long random string not something simple.
+
+
+Things that could be improved later
+
+Right now document processing happens in the same request which means the user has to wait for embedding to finish before the page loads. For large documents this can take 10 to 20 seconds. A background task queue like Celery or Redis Queue would fix this.
+
+Also there is no file preview inside the app. Users have to open the file separately to read it. A built in viewer for PDFs would improve the experience.
+
+Multi user access to shared projects is not supported right now. Each project belongs to one user only.

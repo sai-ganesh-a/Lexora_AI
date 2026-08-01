@@ -1,0 +1,85 @@
+Architecture Overview
+Lexora AI
+
+
+Overall System Design
+
+The system is divided into three main parts. The frontend which the user sees and interacts with. The backend which is the Flask server handling all the logic. And the data layer which includes the SQLite database and ChromaDB vector store.
+
+The user opens the browser and everything they do sends requests to Flask. Flask processes the request and talks to the database or ChromaDB or Gemini API depending on what is needed. Then it sends back a response and the page updates.
+
+There is no separate frontend framework. HTML templates are rendered by Jinja2 on the server side. JavaScript is used only for the chat part because that needs to send requests without reloading the page.
+
+
+Frontend Layer
+
+The pages are HTML with Tailwind CSS for styling. No React or Vue is used. The reason is the project scope is small and server side rendering is simpler and faster to build.
+
+The chat interface is the only place with heavy JavaScript. When the user types a question and hits send it uses the fetch API to post the question to the Flask backend. The answer comes back as JSON and is shown in the chat box without any page reload.
+
+
+Backend Layer
+
+The Flask application is split into blueprints. Each blueprint handles one area of the system.
+
+The auth blueprint handles registration and login. It uses Flask Login for session management. Passwords are hashed with Werkzeug before storing.
+
+The projects blueprint handles workspace creation listing and deletion. Every project belongs to a user so when the dashboard loads it only pulls projects where the user id matches the logged in user.
+
+The documents blueprint handles file upload processing and deletion. When a file is uploaded it is saved to disk then text is extracted then chunked then embedded and stored in ChromaDB. All of this happens in the same request so the user waits until it is done.
+
+The chat blueprint exposes three endpoints. One for asking questions. One for fetching history. One for clearing history.
+
+
+Data Layer
+
+SQLite stores all relational data. This includes user accounts project records document metadata and chat messages. It is a file based database so nothing extra needs to be installed or configured.
+
+ChromaDB stores the vector embeddings. It runs locally and saves its data to a folder called chroma db in the project directory. Each chunk gets stored with its text and metadata. The metadata includes project id and document id which are used for filtering during search.
+
+The uploads folder stores the actual files that users upload. Each file is saved with a random UUID as the filename to avoid naming conflicts. The original filename is stored in the database.
+
+
+How Multi Document Retrieval Works
+
+Each document is broken into chunks when uploaded. All chunks are stored in one ChromaDB collection called documents. But every chunk has a project id in its metadata.
+
+When a user asks a question the search uses a where filter on the project id. This means only chunks from that specific project are searched. If a project has five documents all five are searched at the same time. ChromaDB finds the most relevant chunks across all of them ranked by vector similarity.
+
+So multi document retrieval happens automatically. The user does not need to select which document to search. The embedding similarity takes care of finding the right content across all uploaded files in the project.
+
+
+How Retrieval Augmented Generation Works
+
+The user types a question. That question is converted to a vector using Gemini embedding model. ChromaDB searches for the closest matching chunks using cosine similarity. The top chunks are combined into a single context string. That context string along with the question is sent to Gemini 2.5 Flash which generates the final answer.
+
+The model is told to answer only from the context. If the context does not have enough information it is told to say so. This keeps the answers grounded in the actual document content and avoids hallucination.
+
+
+Retrieval Strategy and Why It Works This Way
+
+Chunk size is 800 characters with 100 character overlap. This gives enough context per chunk for meaningful embedding. Smaller chunks lose meaning. Larger chunks make the embedding too general and retrieval becomes less accurate.
+
+For normal questions the system retrieves 8 chunks. For broader requests like summarize or analyze the system detects keywords and retrieves 15 chunks to get a wider view of the document.
+
+The system does not use any re-ranking or hybrid search right now. Pure vector similarity is used. For most document types this is sufficient.
+
+
+Architectural Decisions
+
+Flask was chosen over FastAPI or Django because it is lightweight and supports Jinja2 templates natively. Since the project has both a web interface and API endpoints Flask covers both without needing two separate services.
+
+SQLite was chosen over PostgreSQL because this is a local single user system. The overhead of running a database server is not justified here.
+
+ChromaDB was chosen because it runs locally without any external service. Alternatives like Pinecone require cloud access. FAISS is another local option but ChromaDB has better metadata filtering which is needed to isolate documents by project.
+
+Gemini was used for both embeddings and generation to keep the dependency on one API provider. This also reduces cost and complexity.
+
+Session based authentication was used instead of JWT tokens because the app is server rendered. JWT makes more sense for fully client side apps. Flask Login handles sessions cleanly with minimal setup.
+
+
+Data Flow Summary
+
+User uploads file. Flask receives it and saves to uploads folder. Parser extracts text. Chunker splits text into pieces. Embedding service sends chunks to Gemini and gets vectors back. Vector store saves chunks and vectors to ChromaDB with metadata.
+
+User asks question. Embedding service converts question to vector. Vector store searches ChromaDB for matching chunks filtered by project id. Top chunks are combined. Gemini receives chunks and question and returns answer. Answer is saved to database. Answer is returned to frontend and shown in chat.

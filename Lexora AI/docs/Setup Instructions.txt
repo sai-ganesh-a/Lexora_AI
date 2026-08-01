@@ -1,0 +1,89 @@
+Setup and Installation Guide
+Lexora AI
+
+
+First thing you need to do is make sure Python is installed in your system.
+Go to python.org and download Python 3.9 or above. During install check the box that says "Add Python to PATH".
+
+You also need a Gemini API Key. Go to Google AI Studio and create one. It is free.
+
+
+Step 1 - Download the project
+
+Download the project folder and extract it somewhere in your computer.
+
+
+Step 2 - Open terminal
+
+Open command prompt or powershell and go inside the project folder.
+
+Example:
+cd "Lexora AI"
+
+
+Step 3 - Create virtual environment
+
+python -m venv venv
+
+Then activate it.
+
+On Windows:
+venv\Scripts\activate
+
+On Mac or Linux:
+source venv/bin/activate
+
+After this you should see (venv) in your terminal. That means it worked.
+
+
+Step 4 - Install all required packages
+
+pip install -r requirements.txt
+
+This will install everything. It may take few minutes depending on your internet.
+
+
+Step 5 - Create the .env file
+
+In the project folder create a file named .env and put this inside it.
+
+SECRET_KEY=anyrandomstringyouwant
+GEMINI_API_KEY=paste your gemini api key here
+
+Save the file.
+
+
+Step 6 - Run the application
+
+python app.py
+
+Now open your browser and go to
+
+http://127.0.0.1:5000
+
+
+That's it. The app will load. First time it will ask you to register. Create an account and you can start using it.
+
+
+How to use
+
+After login you will see the dashboard. Click New Project to create a workspace.
+
+Then go inside the project and upload a PDF or DOCX or TXT file.
+
+After upload is done you can type your question in the chat box on the right side and Lexora AI will answer based on your document.
+
+You can also click the small icon next to each document to get a summary of that file.
+
+To clear chat just click Clear History button at the top of the chat.
+
+
+Common Issues
+
+If you see an error about API key just check your .env file and make sure the key is correct.
+
+If packages fail to install try running the command again or upgrade pip first using this command.
+
+python -m pip install --upgrade pip
+
+If the app shows database error just delete the database.db file inside the instance folder and restart the app. It will create a fresh one.
